@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hoyt Property Care — Ops Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
+<style>
+:root { color-scheme: light; }
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:#f4f6f3; color:#1c2b21; padding:20px; }
+.wrap { max-width:1200px; margin:0 auto; }
+header { display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+header h1 { font-size:22px; font-weight:700; color:#1d3a26; }
+header .asof { font-size:13px; color:#5b6e60; }
+/* passcode gate */
+#gate { max-width:360px; margin:14vh auto 0; background:#fff; border:1px solid #e2e8e0; border-radius:14px; padding:32px 28px; text-align:center; }
+#gate h1 { font-size:19px; color:#1d3a26; margin-bottom:6px; }
+#gate p { font-size:13px; color:#6b7d70; margin-bottom:18px; }
+#gate input { width:100%; padding:10px 12px; font-size:15px; border:1px solid #cfdad1; border-radius:8px; margin-bottom:12px; text-align:center; }
+#gate button { width:100%; padding:10px; font-size:14px; font-weight:700; color:#fff; background:#2e7d4a; border:none; border-radius:8px; cursor:pointer; }
+#gate .err { color:#a02c2c; font-size:12.5px; margin-top:10px; min-height:16px; }
+.toggles { display:flex; gap:8px; flex-wrap:wrap; align-items:center; background:#fff; border:1px solid #e2e8e0; border-radius:10px; padding:8px 12px; margin-bottom:16px; }
+.toggles .tlabel { font-size:12px; font-weight:700; color:#6b7d70; text-transform:uppercase; letter-spacing:.05em; margin-right:4px; }
+.tog { font-size:12.5px; font-weight:600; padding:5px 12px; border-radius:999px; cursor:pointer; border:1px solid #cfdad1; background:#f7faf7; color:#8a978d; user-select:none; transition:all .15s; }
+.tog.on { background:#2e7d4a; border-color:#2e7d4a; color:#fff; }
+.alerts { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:18px; }
+.alert { font-size:13px; font-weight:600; padding:7px 12px; border-radius:8px; }
+.alert.red { background:#fdeaea; color:#a02c2c; border:1px solid #f2c7c7; }
+.alert.amber { background:#fdf4e3; color:#8a6210; border:1px solid #efdcb0; }
+.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(215px,1fr)); gap:12px; margin-bottom:22px; }
+.card { background:#fff; border:1px solid #e2e8e0; border-radius:12px; padding:16px 18px; }
+.card .label { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:#6b7d70; font-weight:600; margin-bottom:6px; }
+.card .value { font-size:26px; font-weight:700; color:#1d3a26; }
+.card .sub { font-size:12.5px; color:#5b6e60; margin-top:4px; }
+.bar { height:7px; background:#e7ece7; border-radius:4px; margin-top:10px; overflow:hidden; }
+.bar > div { height:100%; border-radius:4px; background:linear-gradient(90deg,#3c9d5f,#6cc48b); }
+.grid2 { display:grid; grid-template-columns:1.25fr 1fr; gap:14px; margin-bottom:14px; }
+@media (max-width:900px){ .grid2 { grid-template-columns:1fr; } }
+section { background:#fff; border:1px solid #e2e8e0; border-radius:12px; padding:18px 20px; margin-bottom:14px; }
+section h2 { font-size:15px; font-weight:700; color:#1d3a26; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+.pill { font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; white-space:nowrap; }
+.pill.hot { background:#fdeaea; color:#c0392b; }
+.pill.stale { background:#fdf4e3; color:#8a6210; }
+.pill.fresh { background:#e8f4ec; color:#2e7d4a; }
+.pill.renew { background:#eaf0fd; color:#3452a4; }
+.pill.inv { background:#eef1fb; color:#4a5ba6; }
+.fu { border-bottom:1px solid #eef2ee; padding:11px 0; }
+.fu:last-child { border-bottom:none; }
+.fu .top { display:flex; justify-content:space-between; align-items:baseline; gap:8px; flex-wrap:wrap; }
+.fu .who { font-weight:700; font-size:14px; }
+.fu .amt { font-weight:700; font-size:14px; color:#1d3a26; }
+.fu .meta { font-size:12px; color:#6b7d70; margin-top:2px; }
+.fu .action { font-size:13px; color:#2e5138; margin-top:5px; background:#f2f7f3; border-left:3px solid #3c9d5f; padding:6px 10px; border-radius:0 6px 6px 0; }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th { text-align:left; color:#6b7d70; font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; padding:6px 8px; border-bottom:1px solid #e2e8e0; }
+td { padding:7px 8px; border-bottom:1px solid #f0f3f0; }
+td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
+.warn { color:#a02c2c; font-weight:600; }
+.chartbox { position:relative; height:260px; }
+footer { font-size:11.5px; color:#8a978d; text-align:center; margin-top:6px; padding-bottom:10px; }
+.split { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+@media (max-width:900px){ .split { grid-template-columns:1fr; } }
+.hidden { display:none !important; }
+.note { font-size:12px; color:#6b7d70; margin-top:8px; }
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <h1>🌿 Hoyt Property Care</h1>
+  <p>Enter the team passcode to view the ops dashboard.</p>
+  <input type="password" id="pass" placeholder="Passcode" autofocus>
+  <button id="unlock">Unlock</button>
+  <div class="err" id="gateErr"></div>
+</div>
+
+<div class="wrap hidden" id="app">
+<header>
+  <h1>🌿 Hoyt Property Care — Landscape Ops Dashboard</h1>
+  <div class="asof">Data from LMN · as of <span id="asof"></span></div>
+</header>
+
+<div class="toggles" id="toggles"><span class="tlabel">Display:</span></div>
+
+<div class="alerts" id="alerts" data-sec="alerts"></div>
+<div class="cards" id="cards" data-sec="kpis"></div>
+
+<div class="grid2">
+  <section data-sec="followups">
+    <h2>📞 Follow-Up Actions — Close These Deals</h2>
+    <div id="followups"></div>
+  </section>
+  <div>
+    <section data-sec="divisions">
+      <h2>🎯 Division Revenue vs Goal (YTD)</h2>
+      <div class="chartbox"><canvas id="divChart"></canvas></div>
+      <div class="note">Snow &amp; Ice and Property Mgmt shown as <b>invoiced</b> revenue (snow work is invoiced, not estimated, in LMN). Other divisions show sold estimates.</div>
+    </section>
+    <section data-sec="closerates">
+      <h2>📈 Closing Rates by Division</h2>
+      <table><thead><tr><th>Division</th><th class="num">Close % (#)</th><th class="num">Close % ($)</th><th class="num">Sold YTD</th><th class="num">Invoiced YTD</th></tr></thead><tbody id="closeRates"></tbody></table>
+    </section>
+  </div>
+</div>
+
+<div class="split">
+  <section data-sec="overbudget">
+    <h2>⚠️ Jobs Over Budget — Watchlist</h2>
+    <table><thead><tr><th>Job</th><th class="num">Hrs Over</th><th class="num">% Over</th></tr></thead><tbody id="overBudget"></tbody></table>
+    <div class="note" id="obNote"></div>
+  </section>
+  <section data-sec="billing">
+    <h2>💵 Billing &amp; Collections</h2>
+    <table><thead><tr><th></th><th class="num">This Month</th><th class="num">Last Month</th></tr></thead><tbody id="billing"></tbody></table>
+    <table style="margin-top:14px;"><thead><tr><th>Oldest Overdue</th><th class="num">Balance</th></tr></thead><tbody id="overdue"></tbody></table>
+  </section>
+</div>
+
+<footer>Pulled from LMN (my.golmn.com) · Refreshed each weekday morning · Data is AES-encrypted at rest; the passcode decrypts it in your browser · Section toggles are remembered per computer</footer>
+</div>
+
+<script>
+const fmt$ = n => "$" + Math.round(n).toLocaleString();
+const fmt$c = n => "$" + n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+
+async function decrypt(passcode, blob) {
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey("raw", enc.encode(passcode), "PBKDF2", false, ["deriveKey"]);
+  const key = await crypto.subtle.deriveKey(
+    { name:"PBKDF2", salt:b64(blob.salt), iterations:blob.iter, hash:"SHA-256" },
+    keyMaterial, { name:"AES-GCM", length:256 }, false, ["decrypt"]);
+  const pt = await crypto.subtle.decrypt({ name:"AES-GCM", iv:b64(blob.iv) }, key, b64(blob.ct));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+
+async function tryUnlock(passcode) {
+  const res = await fetch("data.enc.json", { cache:"no-store" });
+  if (!res.ok) throw new Error("Could not load dashboard data (" + res.status + ")");
+  const blob = await res.json();
+  return decrypt(passcode, blob);
+}
+
+document.getElementById("unlock").addEventListener("click", attempt);
+document.getElementById("pass").addEventListener("keydown", e => { if (e.key === "Enter") attempt(); });
+
+async function attempt() {
+  const pc = document.getElementById("pass").value.trim();
+  const err = document.getElementById("gateErr");
+  if (!pc) return;
+  err.textContent = "Checking…";
+  try {
+    const data = await tryUnlock(pc);
+    sessionStorage.setItem("hoytDashPass", pc);
+    err.textContent = "";
+    render(data);
+  } catch (e) {
+    err.textContent = e.name === "OperationError" ? "Wrong passcode — try again." : e.message;
+  }
+}
+
+// auto-unlock if passcode saved this browser session
+(async () => {
+  const saved = sessionStorage.getItem("hoytDashPass");
+  if (saved) { try { render(await tryUnlock(saved)); } catch(e) { sessionStorage.removeItem("hoytDashPass"); } }
+})();
+
+function render(DATA) {
+  document.getElementById("gate").classList.add("hidden");
+  document.getElementById("app").classList.remove("hidden");
+  document.getElementById("asof").textContent = DATA.asOf;
+
+  // section toggles
+  const SECTIONS = [
+    { key:"alerts", label:"Alerts" }, { key:"kpis", label:"KPI Cards" },
+    { key:"followups", label:"Follow-Ups" }, { key:"divisions", label:"Division Chart" },
+    { key:"closerates", label:"Close Rates" }, { key:"overbudget", label:"Over Budget" },
+    { key:"billing", label:"Billing & AR" }
+  ];
+  let prefs;
+  try { prefs = JSON.parse(localStorage.getItem("lmnDashSections")) || {}; } catch(e){ prefs = {}; }
+  SECTIONS.forEach(s => { if (!(s.key in prefs)) prefs[s.key] = true; });
+
+  let chartInited = false;
+  function applyVisibility() {
+    document.querySelectorAll("[data-sec]").forEach(el => el.classList.toggle("hidden", !prefs[el.dataset.sec]));
+    if (prefs.divisions && !chartInited) { initChart(); chartInited = true; }
+  }
+  const togWrap = document.getElementById("toggles");
+  togWrap.querySelectorAll(".tog").forEach(t=>t.remove());
+  SECTIONS.forEach(s => {
+    const b = document.createElement("span");
+    b.className = "tog" + (prefs[s.key] ? " on" : "");
+    b.textContent = s.label;
+    b.onclick = () => {
+      prefs[s.key] = !prefs[s.key];
+      b.classList.toggle("on", prefs[s.key]);
+      try { localStorage.setItem("lmnDashSections", JSON.stringify(prefs)); } catch(e){}
+      applyVisibility();
+    };
+    togWrap.appendChild(b);
+  });
+
+  // alerts
+  const alerts = [];
+  if (DATA.month.newLeads === 0) alerts.push(['amber','🚩 0 new leads this month — check lead sources']);
+  alerts.push(['red','💰 ' + fmt$(DATA.ar.overdueTotal) + ' overdue across ' + DATA.ar.overdueCount + ' invoices']);
+  alerts.push(['amber','⏱ ' + DATA.jobs.overBudgetCount + ' jobs over labor budget']);
+  document.getElementById("alerts").innerHTML = alerts.map(a=>`<div class="alert ${a[0]}">${a[1]}</div>`).join("");
+
+  // KPI cards
+  const sg = DATA.salesGoal;
+  const pctS = (sg.actual/sg.goal*100);
+  const now = new Date();
+  const yearPct = Math.round(((now - new Date(now.getFullYear(),0,1)) / (365.25*24*3600*1000)) * 1000) / 10;
+  const snow = DATA.divisions.find(d=>d.name==="Snow & Ice");
+  document.getElementById("cards").innerHTML = `
+    <div class="card"><div class="label">Sales YTD (Sold Estimates)</div><div class="value">${fmt$(sg.actual)}</div>
+      <div class="sub">${pctS.toFixed(1)}% of ${fmt$(sg.goal)} goal · ${yearPct}% of year elapsed</div>
+      <div class="bar"><div style="width:${Math.min(pctS,100)}%"></div></div></div>
+    <div class="card"><div class="label">Invoiced YTD (All Divisions)</div><div class="value">${fmt$(DATA.invoicedYTD)}</div>
+      <div class="sub">Includes Snow &amp; Ice ${snow?fmt$(snow.invoiced):""} — invoiced, not estimated</div></div>
+    <div class="card"><div class="label">Open Pipeline</div><div class="value">${fmt$(DATA.pipeline.openValue)}</div>
+      <div class="sub">${DATA.pipeline.openCount} open estimates awaiting decision</div></div>
+    <div class="card"><div class="label">Invoiced This Month</div><div class="value">${fmt$(DATA.month.invoiced)}</div>
+      <div class="sub">${DATA.month.invoicedCount} invoices · last month ${fmt$(DATA.month.invoicedLast)}</div></div>
+    <div class="card"><div class="label">Active Jobs</div><div class="value">${DATA.jobs.active}</div>
+      <div class="sub">${DATA.jobs.newPast7} new in past 7 days</div></div>
+    <div class="card"><div class="label">New Leads (Month)</div><div class="value">${DATA.month.newLeads}</div>
+      <div class="sub">${DATA.month.newClients} new clients</div></div>`;
+
+  // follow-ups
+  document.getElementById("followups").innerHTML = DATA.followups.map((f,i)=>`
+    <div class="fu">
+      <div class="top">
+        <span class="who">${i+1}. ${f.who} <span class="pill ${f.tag}">${f.tagLabel}</span></span>
+        <span class="amt">${f.amt ? fmt$(f.amt) : ""}</span>
+      </div>
+      <div class="meta">${f.est ? '<b style="color:#3452a4">'+f.est+'</b> · ' : ''}${f.proj}</div>
+      <div class="action">${f.action}</div>
+    </div>`).join("");
+
+  // close rates
+  document.getElementById("closeRates").innerHTML = DATA.divisions.map(d=>`
+    <tr><td>${d.name}${d.source==="invoices" ? ' <span class="pill inv">INVOICED</span>':''}</td>
+    <td class="num">${d.closeNum==null?"—":d.closeNum+"%"}</td>
+    <td class="num">${d.closeDollar==null?"—":d.closeDollar+"%"}</td>
+    <td class="num">${d.sold==null?"—":fmt$(d.sold)}</td>
+    <td class="num">${fmt$(d.invoiced)}</td></tr>`).join("");
+
+  // over budget
+  document.getElementById("overBudget").innerHTML = DATA.overBudgetJobs.map(j=>`
+    <tr><td>${j.job}</td><td class="num warn">${j.hrs}</td><td class="num">${j.pct? j.pct+"%":"—"}</td></tr>`).join("");
+  document.getElementById("obNote").textContent = DATA.jobs.overBudgetCount + " jobs total are over budget. Recurring culprits: mulching and spring-cleanup tasks — revisit production rates before quoting next season.";
+
+  // billing
+  document.getElementById("billing").innerHTML = `
+    <tr><td>Invoiced</td><td class="num">${fmt$c(DATA.month.invoiced)}</td><td class="num">${fmt$c(DATA.month.invoicedLast)}</td></tr>
+    <tr><td>Payments received</td><td class="num">${fmt$c(DATA.month.paymentsThis)}</td><td class="num">${fmt$c(DATA.month.paymentsLast)}</td></tr>
+    <tr><td>Overdue balance</td><td class="num warn" colspan="2">${fmt$c(DATA.ar.overdueTotal)} (${DATA.ar.overdueCount} invoices)</td></tr>`;
+  document.getElementById("overdue").innerHTML = DATA.overdueTop.map(o=>`
+    <tr><td>${o.inv} <span style="color:#8a978d">· due ${o.due}</span></td><td class="num warn">${fmt$c(o.amt)}</td></tr>`).join("");
+
+  // division chart
+  function initChart() {
+    const revenue = DATA.divisions.map(d => d.source === "invoices" ? d.invoiced : d.sold);
+    new Chart(document.getElementById("divChart"), {
+      type: "bar",
+      data: {
+        labels: DATA.divisions.map(d=>d.name + (d.source==="invoices" ? " (inv)" : "")),
+        datasets: [
+          { label:"Revenue YTD", data: revenue, backgroundColor: DATA.divisions.map(d=>d.source==="invoices" ? "#4a5ba6" : "#3c9d5f"), borderRadius:4 },
+          { label:"Division Goal", data: DATA.divisions.map(d=>d.salesGoal), backgroundColor:"#d8e4da", borderRadius:4 }
+        ]
+      },
+      options: {
+        responsive:true, maintainAspectRatio:false, indexAxis:"y",
+        scales:{ x:{ ticks:{ callback:v=>"$"+(v/1000)+"k" }, grid:{color:"#eef2ee"} }, y:{ grid:{display:false} } },
+        plugins:{ legend:{ position:"bottom", labels:{ boxWidth:12, font:{size:11} } } }
+      }
+    });
+  }
+  applyVisibility();
+}
+</script>
+</body>
+</html>
